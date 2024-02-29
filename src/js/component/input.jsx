@@ -1,29 +1,80 @@
-import React, { useState, useEffect } from "react";FontAwesomeIcon
+import React, { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faDeleteLeft, faPencil } from "@fortawesome/free-solid-svg-icons";
-
+import { v4 as uuidv4 } from "uuid";
 
 const TaskList = () => {
-  const [task, setTask] 
-  = useState("");
-  const [taskList, setTaskList] 
-  = useState([]);
-  const [isEditing, setIsEditing]
-   = useState(false);
-  const [editID, setEditID] 
-  = useState(null);
-  const [alert, setAlert] 
-  = useState({ show: false, msg: "", type: "" });
-
+  const [task, setTask] = useState("");
+  const [taskList, setTaskList] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editID, setEditID] = useState(null);
+  const [alert, setAlert] = useState({ show: false, msg: "", type: "" });
+  const nickname = "JorgeM";
   useEffect(() => {
-    fetch("https://playground.4geeks.com/apis/fake/todos/user/JorgeMartinez")
-      .then((resp) =>
-       resp.json())
-      .then((data) => 
-      setTaskList(data))
-      .catch((error) => 
-      console.log(error));
-  }, []);
+    const options = {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "User-Agent": "insomnia/8.3.0",
+      },
+    };
+    fetch(
+      `https://playground.4geeks.com/apis/fake/todos/user/${nickname}`,
+      options
+    )
+      .then((response) => {
+        if (!response.ok) {
+          throw Error(response.statusText);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        setTaskList(data);
+      })
+      .catch((err) => {
+        if (err.message.includes("NOT FOUND")) {
+          const postOptions = {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "User-Agent": "insomnia/8.3.0",
+            },
+            body: JSON.stringify([]), // Enviar una lista de tareas vacía
+          };
+          fetch(
+            `https://playground.4geeks.com/apis/fake/todos/user/${nickname}`,
+            postOptions
+          )
+            .then((response) => {
+              if (!response.ok) {
+                throw Error(response.statusText);
+              }
+              return response.json();
+            })
+            .then((data) => {
+              // Intenta obtener la lista de tareas del usuario nuevamente
+              fetch(
+                `https://playground.4geeks.com/apis/fake/todos/user/${nickname}`,
+                options
+              )
+                .then((response) => {
+                  if (!response.ok) {
+                    throw Error(response.statusText);
+                  }
+                  return response.json();
+                })
+                .then((data) => {
+                  // Actualiza el estado con la lista de tareas obtenida
+                  setTaskList(data);
+                })
+                .catch((err) => console.error(err));
+            })
+            .catch((err) => console.error(err));
+        } else {
+          console.error(err);
+        }
+      });
+  }, []); // Se ejecuta solo una vez cuando el componente se monta
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -47,7 +98,7 @@ const TaskList = () => {
       setIsEditing(false);
       setAlert({ show: true, msg: "Valor cambiado", type: "success" });
     } else {
-      const newTask = { label: task, done: false };
+      const newTask = { id: uuidv4(), label: task, done: false };
       const newTaskList = [...taskList, newTask];
       setTaskList(newTaskList);
       updateTasks(newTaskList);
@@ -60,29 +111,29 @@ const TaskList = () => {
     }
   };
 
-  const deleteTask = (id) => {
-    const newTaskList = taskList.filter((task) => task.id !== id);
-    setTaskList(newTaskList);
-    updateTasks(newTaskList);
-    setAlert({
-      show: true,
-      msg: "Tarea eliminada",
-      type: "danger",
-    });
-  };
-
   const clearTasks = () => {
-    setTaskList([]);
-    updateTasks([]);
-    setAlert({
-      show: true,
-      msg: "Todas tareas eliminadas",
-      type: "danger",
-    });
+    const tempTask = { id: "temp", label: "Example Task!", done: false };
+    fetch(`https://playground.4geeks.com/apis/fake/todos/user/${nickname}`, {
+      method: "PUT",
+      body: JSON.stringify([tempTask]),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
+      .then((resp) => resp.json())
+      .then((data) => {
+        setTaskList([]);
+        setAlert({
+          show: true,
+          msg: "Todas tareas eliminadas",
+          type: "danger",
+        });
+      })
+      .catch((error) => console.log(error));
   };
 
   const updateTasks = (tasks) => {
-    fetch("https://playground.4geeks.com/apis/fake/todos/user/JorgeMartinez", {
+    fetch(`https://playground.4geeks.com/apis/fake/todos/user/${nickname}`, {
       method: "PUT",
       body: JSON.stringify(tasks),
       headers: {
@@ -90,10 +141,27 @@ const TaskList = () => {
       },
     })
       .then((resp) => resp.json())
-      .then((data) => console.log(data))
+      .then((data) => {
+        console.log(data);
+      })
       .catch((error) => console.log(error));
   };
 
+  const deleteTask = (id) => {
+    const newTaskList = taskList.filter((task) => task.id !== id);
+    setTaskList(newTaskList);
+    if (newTaskList.length === 0) {
+      // Si la nueva lista de tareas está vacía, agrega una tarea falsa
+      updateTasks([{ id: "temp", label: "Example Task!", done: false }]);
+    } else {
+      updateTasks(newTaskList);
+    }
+    setAlert({
+      show: true,
+      msg: "Tarea eliminada",
+      type: "danger",
+    });
+  };
   return (
     <div className="container mt-5">
       {alert.show && (
@@ -135,7 +203,10 @@ const TaskList = () => {
                       setIsEditing(true);
                     }}
                   >
-                     <FontAwesomeIcon icon={faPencil} />
+                    <FontAwesomeIcon
+                      icon={faPencil}
+                      style={{ color: "#63E6BE" }}
+                    />
                   </button>
                   <button
                     className="btn btn-outline-danger hide-button ms-2"
